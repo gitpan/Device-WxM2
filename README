@@ -15,6 +15,7 @@ SYNOPSYS
       my @currentWx      = $ws->getSensorImage;
       my $void           = $ws->archiveCurImage();
       my $status         = $ws->updateArchiveFromPtr($lastArchivedPtr, $file);
+      my $status         = $ws->batchRetrieveArchives($x, $filename);
       my $void           = $ws->printRawLogHeader();
       my $ptr            = $ws->getNewPtr;
       my $ptr            = $ws->getLastPtr;
@@ -24,7 +25,10 @@ SYNOPSYS
 
   Individual Access Functions
       my $outside_temp                       = $ws->getOutsideTemp;
+      my $inside_temp                        = $ws->getInsideTemp;
       my $dewpoint                           = $ws->getDewPoint;
+      my $wind_speed                         = $ws->getWindSpeed;
+      my $wind_dir                           = $ws->getWindDir;
       my ($windHi, $hour, $min, $mon, $day)  = $ws->getHiWind;
       my ($dewHi, $hour, $min, $mon, $day)   = $ws->getHiDewPoint;
       my ($dewLo, $hour, $min, $mon, $day)   = $ws->getLoDewPoint;
@@ -40,6 +44,7 @@ SYNOPSYS
 
       my $rainfall_float           = $ws->getYearlyRain;
       my $rainfall_float           = $ws->getDailyRain;
+      my $bp_float                 = $ws->getBarometricPressure;
       my $value                    = $ws->getBaroCal;
       my ($hour, $minute, $second) = $ws->getTime;
       my ($month, $day)            = $ws->getDate;
@@ -64,6 +69,10 @@ SYNOPSYS
       my $void     = $ws->setSerialPortReadTime($timeout_value_in_milliseconds);
       my $void     = $ws->configPort();
       my $timeout_value_in_milliseconds = $ws->getSerialPortReadTime();
+      my $status   = $ws->setArchivePeriod($time_in_minutes);
+      my $time_in_minutes  = $ws->getArchivePeriod();
+      my $status   = $ws->setLastArcTime($time_in_minutes);
+      my $time_in_minutes  = $ws->getLastArcTime();
 
 DESCRIPTION
   Installation
@@ -108,6 +117,13 @@ DESCRIPTION
     default setting in this package. Should you need to change it, use
     &setSerialPortReadTime(time_in_millseconds). Then call &configPort,
     which puts the new setting into effect.
+
+    If you want to change to archive period, use &setArchivePeriod and
+    &getArchivePeriod. Just remember that if you screw up the values, you
+    station's archive will behave strangely until you fix it.
+
+    Use &getLastArcTime and &setLastArcTime to establish the time at which
+    the archives are captured into the weather station's archive memory.
 
   Individual Access Functions
     There are a bunch of individual functions that retrieve one weather
@@ -196,10 +212,22 @@ DESCRIPTION
     &setStationDescription("description"). Typically it contains the name
     and location of the weather station.
 
-    The function &updateArchiveFromPtr is handy for retrieving multiple
+    The function &batchRetrieveArchives is handy for retrieving multiple
     archived images from the WxM2's archive memory. I use it primarily after
     an extended power outage, but there are lots of other reasons to use it.
-    Use it as follows:
+    Us is at follows:
+
+      $ws->batchRetrieveArchives($number, $filename);
+
+    where $number is the number of archives to retrieve starting with the
+    most recent and counting back. And $filename is the string for the file
+    to write all the archive to.
+
+    The function &updateArchiveFromPtr is a low-level function that
+    retrieves archives from an initial pointer value. &batchRetrieveArchives
+    is a user-friendly front-end for this funtion. In most all cases
+    &batchRetrieveArchives should be used. Just in case, you can use
+    &updateArchiveFromPtr as follows:
 
       $ws->updateArchiveFromPtr($lastArchivePtr, $file);
 
@@ -219,6 +247,12 @@ KNOWN LIMITATIONS AND BUGS
     of data after 1 complete block.
 
 HISTORY / CHANGES
+    Version 1.03 - added getInsideTemp, getWindSpeed, getWindDir, and
+    getBarometricPressure functions. Fixed barometer calibration bug.
+
+    Version 1.02 - added barometer calibration and bug fix in
+    batchRetrieveArchives.
+
     Version 1.00 is the first public version. I have been using it for about
     2 years, and it seems stable.
 
@@ -236,8 +270,15 @@ ACKNOWLEDGEMENTS
     Thanks to Davis Instruments for publishing the reference specifications
     needed to access the Weather Monitor II.
 
+    Chris Snell added the getInsideTemp, getWindSpeed, and getWindDir
+    functions.
+
+    Wayne Hahn fixed a bug in a pack call that popped up in Perl 5.8. He
+    also added a sleep 1 to getSensorImage command to get it to run
+    smoothly.
+
 COPYRIGHT
-    Copyright (C) 2003 Mark Mabry. All rights reserved.
+    Copyright (C) 2003, 2004 Mark Mabry. All rights reserved.
 
     This program is free software; you can redistribute it and/or modify it
     under the terms of the GNU public license.

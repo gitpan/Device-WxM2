@@ -8,7 +8,7 @@ use Carp;
 use Device::SerialPort;
 
 use vars qw($VERSION);
-$VERSION = '1.00';
+$VERSION = '1.03';
 
 ### Device Driver For the Davis Weather Monitor II, a personal weather station
 ### Copyright (C) 2003  Mark Mabry
@@ -33,21 +33,11 @@ $VERSION = '1.00';
 ### server, so was powered up all the time already.  The Davis Weather
 ### Monitor II only comes with software that runs on Windoze.  
 
-
-### History: This is my first public release of this driver.  I have
-### been using it for about 2 years personally and find it pretty
-### clean.  Therefore, I'm calling this version 1.0.  
-###
-### I have some higher level Perl code that I use to call this, which
-### I may clean up and release some day.  I've also been calling this
-### code directly from a simple perl script via cron job as a back up
-### method.
-
 ### Any updated versions may be obtained from the CPAN site.
 ### Contact me with any bugs/suggestions at mmabry@cpan.org
 
 ### My weather station web page is
-### http://home.attbi.com/~markmabry/Hermes_Wx.html  
+### http://home.comcast.net/~mark.mabry/Hermes_Wx.html  
 
 ### This driver depends on the Device::SerialPort Perl driver found on
 ### CPAN. You must install it in your @INC path.  The standard CPAN
@@ -77,6 +67,7 @@ B<WxM2> - Davis Weather Monitor II Station device driver
   my @currentWx      = $ws->getSensorImage;
   my $void           = $ws->archiveCurImage();
   my $status         = $ws->updateArchiveFromPtr($lastArchivedPtr, $file);
+  my $status         = $ws->batchRetrieveArchives($x, $filename);
   my $void           = $ws->printRawLogHeader();
   my $ptr            = $ws->getNewPtr;
   my $ptr            = $ws->getLastPtr;
@@ -87,7 +78,10 @@ B<WxM2> - Davis Weather Monitor II Station device driver
 =head2 Individual Access Functions
 
   my $outside_temp                       = $ws->getOutsideTemp;
+  my $inside_temp                        = $ws->getInsideTemp;
   my $dewpoint                           = $ws->getDewPoint;
+  my $wind_speed			 = $ws->getWindSpeed;
+  my $wind_dir				 = $ws->getWindDir;
   my ($windHi, $hour, $min, $mon, $day)  = $ws->getHiWind;
   my ($dewHi, $hour, $min, $mon, $day)   = $ws->getHiDewPoint;
   my ($dewLo, $hour, $min, $mon, $day)   = $ws->getLoDewPoint;
@@ -103,6 +97,7 @@ B<WxM2> - Davis Weather Monitor II Station device driver
 
   my $rainfall_float           = $ws->getYearlyRain;
   my $rainfall_float           = $ws->getDailyRain;
+  my $bp_float		       = $ws->getBarometricPressure;
   my $value                    = $ws->getBaroCal;
   my ($hour, $minute, $second) = $ws->getTime;
   my ($month, $day)            = $ws->getDate;
@@ -128,6 +123,10 @@ B<WxM2> - Davis Weather Monitor II Station device driver
   my $void     = $ws->setSerialPortReadTime($timeout_value_in_milliseconds);
   my $void     = $ws->configPort();
   my $timeout_value_in_milliseconds = $ws->getSerialPortReadTime();
+  my $status   = $ws->setArchivePeriod($time_in_minutes);
+  my $time_in_minutes  = $ws->getArchivePeriod();
+  my $status   = $ws->setLastArcTime($time_in_minutes);
+  my $time_in_minutes  = $ws->getLastArcTime();
 
 
 =head1 DESCRIPTION
@@ -177,6 +176,14 @@ milliseconds) and this is the default setting in this package.
 Should you need to change it, use
 B<&setSerialPortReadTime>(time_in_millseconds).  Then call
 B<&configPort>, which puts the new setting into effect.
+
+If you want to change to archive period, use B<&setArchivePeriod> and
+B<&getArchivePeriod>.  Just remember that if you screw up the values,
+you station's archive will behave strangely until you fix it.
+
+Use B<&getLastArcTime> and B<&setLastArcTime> to establish the time at which
+the archives are captured into the weather station's archive
+memory.
 
 =head2 Individual Access Functions 
 
@@ -269,10 +276,18 @@ weather station description.  Set it with
 B<&setStationDescription>("description").  Typically it contains the
 name and location of the weather station.
 
-The function B<&updateArchiveFromPtr> is handy for retrieving multiple
+The function B<&batchRetrieveArchives> is handy for retrieving multiple
 archived images from the WxM2's archive memory.  I use it primarily
 after an extended power outage, but there are lots of other reasons to
-use it.  Use it as follows:
+use it.  Us is at follows:
+
+  $ws->batchRetrieveArchives($number, $filename);
+
+where $number is the number of archives to retrieve starting with the most
+recent and counting back.  And $filename is the string for the file to
+write all the archive to.
+
+The function B<&updateArchiveFromPtr> is a low-level function that retrieves archives from an initial pointer value.  B<&batchRetrieveArchives> is a user-friendly front-end for this funtion.  In most all cases B<&batchRetrieveArchives> should be used.  Just in case, you can use B<&updateArchiveFromPtr> as follows:
 
   $ws->updateArchiveFromPtr($lastArchivePtr, $file);
 
@@ -295,6 +310,12 @@ of data after 1 complete block.
 
 =head1 HISTORY / CHANGES
 
+Version 1.03 - added getInsideTemp, getWindSpeed, getWindDir, and 
+getBarometricPressure functions.  Fixed barometer calibration bug.  
+
+Version 1.02 - added barometer calibration and bug fix in
+    batchRetrieveArchives.
+
 Version 1.00 is the first public version.  I have been using it for
     about 2 years, and it seems stable.
 
@@ -316,9 +337,14 @@ Device::SerialPort
 Thanks to Davis Instruments for publishing the reference
 specifications needed to access the Weather Monitor II.
 
+Chris Snell added the getInsideTemp, getWindSpeed, and getWindDir functions.
+
+Wayne Hahn fixed a bug in a pack call that popped up in Perl 5.8.  He also 
+added a sleep 1 to getSensorImage command to get it to run smoothly.
+
 =head1 COPYRIGHT
 
-Copyright (C) 2003 Mark Mabry. All rights reserved.
+Copyright (C) 2003, 2004 Mark Mabry. All rights reserved.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU public license.
@@ -333,7 +359,6 @@ my $DEBUG = 0;
 
 my $quiet = 1;
 my $sample_offset = 0;		# most will set this = 0.
-my $barCAL = -237/1000;
 
 my @compass_rose = ("N", "NNE", "NE", "ENE", "E",
 		    "ESE", "SE", "SSE", "S", "SSW",
@@ -360,6 +385,7 @@ sub new {
     $self->_initialize();
     $self->{portName} = $portName;
     $self->configPort();
+    $self->setupBaroCal();
     return $self;
 }
 
@@ -384,7 +410,6 @@ sub _initialize {
     $self->{loTemp} = 0;
     $self->{hiTemp} =0;
     $self->{avgInTemp} = 0;
-    $self->{baro} = 0;
     $self->{avgWindSpeed} = 0;
     $self->{windGust} = 0;
     $self->{rainInPrd} = 0;
@@ -401,10 +426,15 @@ sub _initialize {
     $self->{dewpoint} = -100;
     $self->{avgDewpoint} = -100;
 
+    # BaroCal
+    $self->{baroCal} = 0;
+    $self->{isBaroCalSet} = 0;
+
     # Configuration
     $self->{portName} = "Not set";
     $self->{serialPortReadConstTime} = 5000;
-    $self->{archiveLogFile} = "./wx_2003.log";
+    my $year = &whichYear;
+    $self->{archiveLogFile} = "./wx_$year.log";
     $self->{stationDescription} = 
 	"Use &setStationDescription(\"text\"); to put your Wx station text here;";
 }
@@ -517,6 +547,40 @@ sub getOutsideTemp {
     $self->{outTemp} = $outTemp;
     return $outTemp;
 }
+
+sub getInsideTemp {
+    my $self = shift;
+
+    my @str_in = $self->read("RRD", 1, 0x1C, 4);
+    return undef unless ($self->_valCheck(2, \@str_in));
+
+    my $inTemp = $self->tempConv(@str_in);
+    $self->{inTemp} = $inTemp;
+    return $inTemp;
+}
+
+sub getWindSpeed {
+    my $self = shift;
+
+    my @str_in = $self->read("WRD", 0, 0x5E, 4); 
+    return undef unless ($self->_valCheck(2, \@str_in));
+
+    # my $windSpeed = ($str_in[1]*256 + $str_in[0]);
+    my $windSpeed = $str_in[0];
+    $self->{windSpeed} = $windSpeed;
+    return($windSpeed);
+}
+
+sub getWindDir {
+    my $self = shift;
+    my @str_in = $self->read("WRD", 1, 0xB4, 4);
+    return undef unless ($self->_valCheck(2, \@str_in));
+
+    my $windDir = "$str_in[0]";
+    $self->{windDir} = $windDir;
+    return($windDir);
+}
+
 
 sub getHiWind {
     my $self = shift;
@@ -713,6 +777,42 @@ sub getDailyRain {
     return ($dRainBytes[1]*256 + $dRainBytes[0])/100;
 }
 
+sub getBarometricPressure {
+    my $self = shift;
+
+    my @baroPressure = $self->read("WRD", 1, 0x00, 4);
+    return undef unless ($self->_valCheck(2, \@baroPressure));
+    
+    # raw barometric pressure reading
+    my $bp = ($baroPressure[1]*256 + $baroPressure[0])/1000;
+
+    # subtract baroCal factor, if set
+    if ($self->{isBaroCalSet}) {
+	$bp -= $self->{baroCal};
+    }
+    return $bp;
+}
+
+sub setupBaroCal {
+    my $self = shift;
+
+    my $baroCal = $self->getBaroCal;
+    return undef unless (defined $baroCal);
+
+    # Note, this will not work for places below sea level, since it
+    # assumes the calibration number should be negative
+    $self->{baroCal} = -(65536 - $baroCal)/1000;
+    $self->{isBaroCalSet} = 1;
+    return;
+}
+
+sub unsetBaroCal {
+    my $self = shift;
+
+    $self->{isBaroCalSet} = 0;
+    return;
+}
+
 sub getBaroCal {
     my $self = shift;
 
@@ -751,12 +851,19 @@ sub getDate {
 sub getArchivePeriod {
     my $self = shift;
 
-    my @str_in = $self->read("RRD", 1, 0x3C, 4);
-    return undef unless ($self->_valCheck(2, \@str_in));
+    my @str_in = $self->read("RRD", 1, 0x3C, 2);
+    return undef unless ($self->_valCheck(1, \@str_in));
 
-    my $period = $str_in[1] * 256 + $str_in[0];
+    my $period = $str_in[0];
     printf "Archive Period is %d minutes\n", $period if $DEBUG > 1;
     return $period;
+}
+
+sub setArchivePeriod {
+    my $self = shift;
+    my $period = shift;
+
+    return $self->write("RWR", 1, 0x3C, 2, $period);
 }
 
 sub getLastArcTime {
@@ -939,7 +1046,12 @@ sub getArcImg {
 				   # 2 extra bytes come back.
 
 
-	my $baro = ($str_in[1]*256 + $str_in[0])/1000 - $barCAL; 
+	my $baro = ($str_in[1]*256 + $str_in[0])/1000;
+	if ($self->{isBaroCalSet}) {
+	    # substract baroCal, to compensate for lower absolute pressure at 
+	    # higher altitudes
+	    $baro -= $self->{baroCal}; 
+	}
 	my $rainInPrd = ($str_in[5]*256 + $str_in[4])/100;
 	my $inTemp = $self->tempConv($str_in[6], $str_in[7]);
 	my $outTemp = $self->tempConv($str_in[8], $str_in[9]);
@@ -948,7 +1060,7 @@ sub getArcImg {
 	my $wind = $str_in[10];
 	my $avgWindDir = $compass_rose[$str_in[11]];
 	my $windGust = $str_in[14];
-	if ($windGust == 0) {
+	if (($windGust == 0) or ($str_in[11] == 255)) {
 	    $avgWindDir = "--";
 	}
 	my $inHum = $str_in[2];
@@ -980,13 +1092,14 @@ sub getArcImg {
 
 
 	if ($DEBUG > 0) {
+	    printf "BaroCal is %s set\n", ($self->{isBaroCalSet}) ? "" : "NOT";
 	    printf "Avg Inside Temp is %f Degrees F\n", $inTemp;
 	    printf "Avg Outside Temp is %f Degrees F\n", $outTemp;
 	    printf "Avg Wind speed is %d\n", $wind;
 	    printf "Avg Wind dir is %s\n", $avgWindDir;
 	    printf "Barometer reads %f\n", $baro;
-	    printf "Inside Humidity is %d%\n", $inHum;
-	    printf "Outside Humidity is %d%\n", $outHum;
+	    printf "Inside Humidity is %d\n", $inHum;
+	    printf "Outside Humidity is %d\n", $outHum;
 	    printf "Rainfall in Period is %f\n", $rainInPrd;
 	    printf "Wind gusting to %d mph\n", $windGust;
 	    printf "Timestamp: %d:%02d on the %d day of the %d month\n",
@@ -1040,6 +1153,27 @@ sub getArcImg {
 
 }
 
+sub batchRetrieveArchives {
+    my ($self, $num, $file) = @_;
+
+    my $lastPtr = $self->getLastPtr;
+    my $sizeOfBatch = 21 * $num;
+
+    # 21 bytes does not divide evenly into 32K bytes.  The last valid
+    # pointer address is 0x7fe3.  The next pointer would be 0x7ff8,
+    # but it would not have the full 21 bytes before wrapping to
+    # address 0x0.  So an additional 8 bytes are subtracted when
+    # calculating the wrap address.
+    my $firstPtr;
+    if ($sizeOfBatch > $lastPtr) {
+	$firstPtr = ($lastPtr - $sizeOfBatch - 8) & 0x7fff;
+    } else {
+	$firstPtr = $lastPtr - $sizeOfBatch;
+    }
+    printf "firstPtr=%d lastPtr=%d\n", $firstPtr, $lastPtr;
+    return $self->updateArchiveFromPtr($firstPtr, $file);
+}
+
 sub updateArchiveFromPtr {
     my ($self, $lastArchivedPtr, $file) = @_;
     my $i;
@@ -1053,22 +1187,21 @@ sub updateArchiveFromPtr {
 	$lastArchivedPtr -= 0x7FFF;
     }
 
-    # Attempt to push $file using local
+    # Push $file using local
     local $self->{archiveLogFile} = $file;
     
-
     printf "Update from %x to %x\n", $lastArchivedPtr, $newPtr 
-	if $DEBUG > 1;
+	if $DEBUG > 0;
     # test for address wrapping here
     if ($newPtr < $lastArchivedPtr) {
-	
-	for ($i=$lastArchivedPtr; $i < 0x7FFF; $i+=21) {
+	#  Last valid ptr addr = 0x7fe3.  0x7ff8 is NOT valid.
+	for ($i=$lastArchivedPtr; $i < 0x7FF8; $i+=21) {
 	    unless ($self->getArcImg($i)) {
 		$rdFailed = 1;
 		last;
 	    }
 	    $self->archiveCurImage();
-	    printf "Archived address %x\n",$i if $DEBUG > 1;
+	    printf "Archived address %x\n",$i if $DEBUG > 0;
 	}
 	$lastArchivedPtr = 0;
     }
@@ -1111,7 +1244,8 @@ sub getSensorImage {
     my $self = shift;
 
     $wxPort->write("LOOP");
-    $wxPort->write(pack "C2", 65535);
+#    $wxPort->write(pack "C2", 65535);  # doesn't work in perl 5.8
+    $wxPort->write(pack "C2", 255, 255); 
     $wxPort->write(pack "C", 0xD);
 
     return undef unless ($self->_get_ack());
@@ -1123,7 +1257,11 @@ sub getSensorImage {
     my $inTemp = $self->tempConv($str_in[1], $str_in[2]);
     my $outTemp = $self->tempConv($str_in[3], $str_in[4]);
     my $baro = ($str_in[9]*256 + $str_in[8])/1000;
-    $baro -= $barCAL; # - barCAL(approx)
+    if ($self->{isBaroCalSet}) {
+	# subtract baroCal, to compensate for lower absolute pressure at 
+	# higher altitudes
+	$baro -= $self->{baroCal};
+    }
     my $tot_rain = ($str_in[13]*256 + $str_in[12])/100;
     my $wind = $str_in[5];
     my $windAdjDir = ($str_in[7]*256 + $str_in[6] + 11) % 360;
@@ -1133,7 +1271,6 @@ sub getSensorImage {
     my $inHum = $str_in[10];
     my $outHum = $str_in[11];
     if ($DEBUG > 1) {
-	print "$windDirDegree, $windDirDeg16, $windDir\n";
 	printf "Inside Temp is %f Degrees F\n", $inTemp;
 	printf "Outside Temp is %f Degrees F\n", $outTemp;
 	printf "Wind speed is %d\n", $wind;
@@ -1157,6 +1294,10 @@ sub getSensorImage {
 
     # Stops loop
     #&getOutsideTemp();
+    
+    # Wayne Hahn suggested a sleep 1 here to pace the loop.
+    sleep 1;
+
     # issues command and ignore data, ack.
     $wxPort->write("RRD");
     $wxPort->write(pack "C", 1);	# bank
@@ -1465,6 +1606,12 @@ sub readTimeDate {
     my $day = &bcd2dec($str_in[0]);
     my $mon = $str_in[1] % 16;
     return ($hour, $min, $mon, $day);
+}
+
+sub whichYear {
+    my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
+    $year += 1900;
+    return $year;
 }
 
 ################################################################################
